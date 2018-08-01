@@ -377,6 +377,15 @@ public class MainActivity extends AppCompatActivity {
               mCurrentLocation.getLongitude()));
       mLastUpdateTimeTextView.setText(String.format(Locale.ENGLISH, "%s: %s",
               mLastUpdateTimeLabel, mLastUpdateTime));
+
+      Log.i(TAG, String.format(Locale.ENGLISH, "%s: %f", mLatitudeLabel,
+              mCurrentLocation.getLatitude()));
+      Log.i(TAG, String.format(Locale.ENGLISH, "%s: %f", mLongitudeLabel,
+              mCurrentLocation.getLongitude()));
+      Log.i(TAG, String.format(Locale.ENGLISH, "%s: %f", mLatitudeLabel,
+              mCurrentLocation.getLatitude()));
+      Log.i(TAG, String.format(Locale.ENGLISH, "%s: %s",
+              mLastUpdateTimeLabel, mLastUpdateTime));
     }
   }
 

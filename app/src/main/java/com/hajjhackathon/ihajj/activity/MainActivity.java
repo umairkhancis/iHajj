@@ -51,7 +51,7 @@ public class MainActivity extends AppCompatActivity {
   /**
    * Code used in requesting runtime permissions.
    */
-  private static final int REQUEST_PERMISSIONS_REQUEST_CODE = 34;
+  private static final int REQUEST_PERMISSIONS_REQUEST_CODE = 1234;
 
   /**
    * Constant used in the location settings dialog.

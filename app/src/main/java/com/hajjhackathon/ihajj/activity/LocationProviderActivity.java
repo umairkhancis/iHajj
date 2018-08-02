@@ -31,6 +31,7 @@ import com.google.android.gms.location.LocationSettingsRequest;
 import com.google.android.gms.location.LocationSettingsResponse;
 import com.google.android.gms.location.LocationSettingsStatusCodes;
 import com.google.android.gms.location.SettingsClient;
+import com.google.android.gms.maps.model.LatLng;
 import com.google.android.gms.tasks.OnCompleteListener;
 import com.google.android.gms.tasks.OnFailureListener;
 import com.google.android.gms.tasks.OnSuccessListener;
@@ -77,6 +78,33 @@ public class LocationProviderActivity extends AppCompatActivity {
   private final static String KEY_LOCATION = "location";
   private final static String KEY_LAST_UPDATED_TIME_STRING = "last-updated-time-string";
   private static final String DB_REFERENCE = "hajjhackathon/iHajj";
+
+  private static final LatLng[][] currentLocationsPool = {
+          {
+                  new LatLng(21.415228, 39.890545),
+                  new LatLng(21.415777, 39.888764),
+                  new LatLng(21.417045, 39.887487),
+                  new LatLng(21.417749, 39.886645)
+          },
+          {
+                  new LatLng(21.413258, 39.894379),
+                  new LatLng(21.412709, 39.895755),
+                  new LatLng(21.412549, 39.897557),
+                  new LatLng(21.412639, 39.900143)
+          },
+          {
+                  new LatLng(21.413019, 39.893523),
+                  new LatLng(21.412040, 39.892847),
+                  new LatLng(21.411031, 39.892268),
+                  new LatLng(21.410202, 39.891721)
+          },
+          {
+                  new LatLng(21.415060, 39.894766),
+                  new LatLng(21.416239, 39.895431),
+                  new LatLng(21.417487, 39.896279),
+                  new LatLng(21.418875, 39.897137)
+          },
+  };
 
   /**
    * Provides access to the Fused Location Provider API.
@@ -351,7 +379,9 @@ public class LocationProviderActivity extends AppCompatActivity {
    */
   private void updateLocationDB() {
     if (mCurrentLocation != null) {
-      String deviceId = "userId-" + getRandomIdSuffix();
+      int randomId = getRandomId();
+      String deviceId = "userId-" + randomId;
+      mCurrentLocation = getRandomCurrentLocation(randomId);
       LocationPingModel locationPingModel = new LocationPingModel(mCurrentLocation.getLatitude(),
               mCurrentLocation.getLongitude(), mCurrentLocation.getTime(), deviceId);
 
@@ -370,11 +400,19 @@ public class LocationProviderActivity extends AppCompatActivity {
     }
   }
 
-  private String getRandomIdSuffix() {
-    Random random = new Random();
-    int rand = random.nextInt(5) + 1;
+  private Location getRandomCurrentLocation(int randomId) {
+    LatLng randomCoordinates = currentLocationsPool[randomId][getRandomId()];
+    mCurrentLocation.setLatitude(randomCoordinates.latitude);
+    mCurrentLocation.setLongitude(randomCoordinates.longitude);
 
-    return String.valueOf(rand);
+    return mCurrentLocation;
+  }
+
+  private int getRandomId() {
+    Random random = new Random();
+    int rand = random.nextInt(4);
+
+    return rand;
   }
 
   /**
@@ -418,7 +456,7 @@ public class LocationProviderActivity extends AppCompatActivity {
 
     // Remove location updates to save battery.
     // TODO: needs to be removed before final demo
-    stopLocationUpdates();
+//    stopLocationUpdates();
   }
 
   /**

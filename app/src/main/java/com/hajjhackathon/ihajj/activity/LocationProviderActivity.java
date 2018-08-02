@@ -19,7 +19,6 @@ import android.support.v7.widget.Toolbar;
 import android.util.Log;
 import android.view.View;
 import android.widget.Button;
-import android.widget.TextView;
 import android.widget.Toast;
 import com.google.android.gms.common.api.ApiException;
 import com.google.android.gms.common.api.ResolvableApiException;
@@ -36,6 +35,9 @@ import com.google.android.gms.tasks.OnCompleteListener;
 import com.google.android.gms.tasks.OnFailureListener;
 import com.google.android.gms.tasks.OnSuccessListener;
 import com.google.android.gms.tasks.Task;
+import com.google.firebase.database.DatabaseReference;
+import com.google.firebase.database.FirebaseDatabase;
+import com.hajjhackathon.ihajj.model.LocationPingModel;
 import com.hajjhackthon.ihajj.BuildConfig;
 import com.hajjhackthon.ihajj.R;
 import java.text.DateFormat;
@@ -44,9 +46,9 @@ import java.util.*;
 /**
  * Created by umair.khan on 8/2/18.
  */
-public class MainActivity extends AppCompatActivity {
+public class LocationProviderActivity extends AppCompatActivity {
 
-  private static final String TAG = MainActivity.class.getSimpleName();
+  private static final String TAG = LocationProviderActivity.class.getSimpleName();
 
   /**
    * Code used in requesting runtime permissions.
@@ -74,6 +76,7 @@ public class MainActivity extends AppCompatActivity {
   private final static String KEY_REQUESTING_LOCATION_UPDATES = "requesting-location-updates";
   private final static String KEY_LOCATION = "location";
   private final static String KEY_LAST_UPDATED_TIME_STRING = "last-updated-time-string";
+  private static final String DB_REFERENCE = "hajjhackathon/iHajj";
 
   /**
    * Provides access to the Fused Location Provider API.
@@ -107,11 +110,8 @@ public class MainActivity extends AppCompatActivity {
   private Location mCurrentLocation;
 
   // UI Widgets.
-  private Button mStartUpdatesButton;
+  private Button mLocationReceiverButton;
   private Button mStopUpdatesButton;
-  private TextView mLastUpdateTimeTextView;
-  private TextView mLatitudeTextView;
-  private TextView mLongitudeTextView;
 
   // Labels.
   private String mLatitudeLabel;
@@ -132,17 +132,13 @@ public class MainActivity extends AppCompatActivity {
   @Override
   public void onCreate(Bundle savedInstanceState) {
     super.onCreate(savedInstanceState);
-    setContentView(R.layout.main_activity);
+    setContentView(R.layout.location_provider_activity);
 
     Toolbar toolbar = (Toolbar) findViewById(R.id.toolbar);
     setSupportActionBar(toolbar);
 
     // Locate the UI widgets.
-    mStartUpdatesButton = findViewById(R.id.start_updates_button);
-    mStopUpdatesButton = findViewById(R.id.stop_updates_button);
-    mLatitudeTextView = findViewById(R.id.latitude_text);
-    mLongitudeTextView = findViewById(R.id.longitude_text);
-    mLastUpdateTimeTextView = findViewById(R.id.last_update_time_text);
+    mLocationReceiverButton = findViewById(R.id.location_receiver_button);
 
     // Set labels.
     mLatitudeLabel = getResources().getString(R.string.latitude);
@@ -163,6 +159,8 @@ public class MainActivity extends AppCompatActivity {
     createLocationCallback();
     createLocationRequest();
     buildLocationSettingsRequest();
+
+    initializeLocationUpdates();
   }
 
   /**
@@ -190,7 +188,7 @@ public class MainActivity extends AppCompatActivity {
       if (savedInstanceState.keySet().contains(KEY_LAST_UPDATED_TIME_STRING)) {
         mLastUpdateTime = savedInstanceState.getString(KEY_LAST_UPDATED_TIME_STRING);
       }
-      updateUI();
+      updateClient();
     }
   }
 
@@ -234,7 +232,7 @@ public class MainActivity extends AppCompatActivity {
 
         mCurrentLocation = locationResult.getLastLocation();
         mLastUpdateTime = DateFormat.getTimeInstance().format(new Date());
-        updateLocationUI();
+        updateLocationDB();
       }
     };
   }
@@ -263,7 +261,7 @@ public class MainActivity extends AppCompatActivity {
           case Activity.RESULT_CANCELED:
             Log.i(TAG, "User chose not to make required location settings changes.");
             mRequestingLocationUpdates = false;
-            updateUI();
+            updateClient();
             break;
         }
         break;
@@ -274,22 +272,19 @@ public class MainActivity extends AppCompatActivity {
    * Handles the Start Updates button and requests start of location updates. Does nothing if
    * updates have already been requested.
    */
-  public void startUpdatesButtonHandler(View view) {
+  public void initializeLocationUpdates() {
     if (!mRequestingLocationUpdates) {
       mRequestingLocationUpdates = true;
-      setButtonsEnabledState();
       startLocationUpdates();
     }
   }
 
   /**
-   * Handles the Stop Updates button, and requests removal of location updates.
+   * Handles the Receiver button, and sends the user to the map activity
    */
-  public void stopUpdatesButtonHandler(View view) {
-    // It is a good practice to remove location requests when the activity is in a paused or
-    // stopped state. Doing so helps battery performance and is especially
-    // recommended in applications that request frequent location updates.
-    stopLocationUpdates();
+  public void receiverButtonHandler(View view) {
+    Intent locationReceiverIntent = new Intent(this, LocationReceiverActivity.class);
+    this.startActivity(locationReceiverIntent);
   }
 
   /**
@@ -309,7 +304,7 @@ public class MainActivity extends AppCompatActivity {
                 mFusedLocationClient.requestLocationUpdates(mLocationRequest, mLocationCallback,
                         Looper.myLooper());
 
-                updateUI();
+                updateClient();
               }
             })
             .addOnFailureListener(this, new OnFailureListener() {
@@ -324,7 +319,8 @@ public class MainActivity extends AppCompatActivity {
                       // Show the dialog by calling startResolutionForResult(), and check the
                       // result in onActivityResult().
                       ResolvableApiException rae = (ResolvableApiException) e;
-                      rae.startResolutionForResult(MainActivity.this, REQUEST_CHECK_SETTINGS);
+                      rae.startResolutionForResult(LocationProviderActivity.this,
+                              REQUEST_CHECK_SETTINGS);
                     } catch (IntentSender.SendIntentException sie) {
                       Log.i(TAG, "PendingIntent unable to execute request.");
                     }
@@ -333,11 +329,12 @@ public class MainActivity extends AppCompatActivity {
                     String errorMessage = "Location settings are inadequate, and cannot be " +
                             "fixed here. Fix in Settings.";
                     Log.e(TAG, errorMessage);
-                    Toast.makeText(MainActivity.this, errorMessage, Toast.LENGTH_LONG).show();
+                    Toast.makeText(LocationProviderActivity.this, errorMessage, Toast.LENGTH_LONG)
+                            .show();
                     mRequestingLocationUpdates = false;
                 }
 
-                updateUI();
+                updateClient();
               }
             });
   }
@@ -345,48 +342,39 @@ public class MainActivity extends AppCompatActivity {
   /**
    * Updates all UI fields.
    */
-  private void updateUI() {
-    setButtonsEnabledState();
-    updateLocationUI();
-  }
-
-  /**
-   * Disables both buttons when functionality is disabled due to insuffucient location settings.
-   * Otherwise ensures that only one button is enabled at any time. The Start Updates button is
-   * enabled if the user is not requesting location updates. The Stop Updates button is enabled
-   * if the user is requesting location updates.
-   */
-  private void setButtonsEnabledState() {
-    if (mRequestingLocationUpdates) {
-      mStartUpdatesButton.setEnabled(false);
-      mStopUpdatesButton.setEnabled(true);
-    } else {
-      mStartUpdatesButton.setEnabled(true);
-      mStopUpdatesButton.setEnabled(false);
-    }
+  private void updateClient() {
+    updateLocationDB();
   }
 
   /**
    * Sets the value of the UI fields for the location latitude, longitude and last update time.
    */
-  private void updateLocationUI() {
+  private void updateLocationDB() {
     if (mCurrentLocation != null) {
-      mLatitudeTextView.setText(String.format(Locale.ENGLISH, "%s: %f", mLatitudeLabel,
-              mCurrentLocation.getLatitude()));
-      mLongitudeTextView.setText(String.format(Locale.ENGLISH, "%s: %f", mLongitudeLabel,
-              mCurrentLocation.getLongitude()));
-      mLastUpdateTimeTextView.setText(String.format(Locale.ENGLISH, "%s: %s",
-              mLastUpdateTimeLabel, mLastUpdateTime));
+      String deviceId = "userId-" + getRandomIdSuffix();
+      LocationPingModel locationPingModel = new LocationPingModel(mCurrentLocation.getLatitude(),
+              mCurrentLocation.getLongitude(), mCurrentLocation.getTime(), deviceId);
 
+      // Logs
+      Log.i(TAG, String.format(Locale.ENGLISH, "%s", deviceId));
       Log.i(TAG, String.format(Locale.ENGLISH, "%s: %f", mLatitudeLabel,
               mCurrentLocation.getLatitude()));
       Log.i(TAG, String.format(Locale.ENGLISH, "%s: %f", mLongitudeLabel,
               mCurrentLocation.getLongitude()));
-      Log.i(TAG, String.format(Locale.ENGLISH, "%s: %f", mLatitudeLabel,
-              mCurrentLocation.getLatitude()));
       Log.i(TAG, String.format(Locale.ENGLISH, "%s: %s",
               mLastUpdateTimeLabel, mLastUpdateTime));
+
+      // Write a message to the database
+      DatabaseReference db = FirebaseDatabase.getInstance().getReference(DB_REFERENCE);
+      db.child("locations").child(deviceId).setValue(locationPingModel);
     }
+  }
+
+  private String getRandomIdSuffix() {
+    Random random = new Random();
+    int rand = random.nextInt(5) + 1;
+
+    return String.valueOf(rand);
   }
 
   /**
@@ -406,7 +394,6 @@ public class MainActivity extends AppCompatActivity {
               @Override
               public void onComplete(@NonNull Task<Void> task) {
                 mRequestingLocationUpdates = false;
-                setButtonsEnabledState();
               }
             });
   }
@@ -422,7 +409,7 @@ public class MainActivity extends AppCompatActivity {
       requestPermissions();
     }
 
-    updateUI();
+    updateClient();
   }
 
   @Override
@@ -430,6 +417,7 @@ public class MainActivity extends AppCompatActivity {
     super.onPause();
 
     // Remove location updates to save battery.
+    // TODO: needs to be removed before final demo
     stopLocationUpdates();
   }
 
@@ -482,7 +470,7 @@ public class MainActivity extends AppCompatActivity {
                 @Override
                 public void onClick(View view) {
                   // Request permission
-                  ActivityCompat.requestPermissions(MainActivity.this,
+                  ActivityCompat.requestPermissions(LocationProviderActivity.this,
                           new String[]{Manifest.permission.ACCESS_FINE_LOCATION},
                           REQUEST_PERMISSIONS_REQUEST_CODE);
                 }
@@ -492,7 +480,7 @@ public class MainActivity extends AppCompatActivity {
       // Request permission. It's possible this can be auto answered if device policy
       // sets the permission in a given state or the user denied the permission
       // previously and checked "Never ask again".
-      ActivityCompat.requestPermissions(MainActivity.this,
+      ActivityCompat.requestPermissions(LocationProviderActivity.this,
               new String[]{Manifest.permission.ACCESS_FINE_LOCATION},
               REQUEST_PERMISSIONS_REQUEST_CODE);
     }
